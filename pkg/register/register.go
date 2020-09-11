@@ -1,6 +1,7 @@
 package register
 
 import (
+	"github.com/fusidic/Greedy-Scheduler/pkg/greedy"
 	"github.com/spf13/cobra"
 	"k8s.io/kubernetes/cmd/kube-scheduler/app"
 )
