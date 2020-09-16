@@ -33,7 +33,7 @@ const (
 
 // Args ...
 type Args struct {
-	KubeConfig string `json:"kbueconfig.omitempty"`
+	KubeConfig string `json:"kbueconfig,omitempty"`
 	Master     string `json:"master,omitempty"`
 }
 
@@ -41,6 +41,26 @@ type Args struct {
 type Greedy struct {
 	args   *Args
 	handle framework.FrameworkHandle
+	resourceAllocationScorer
+}
+
+// Name ...
+func (g Greedy) Name() string {
+	return Name
+}
+
+// New initializes a new plugin and return it.
+// And New should implement the function as frameworkruntime.PluginFactory do.
+func New(configuration runtime.Object, f framework.FrameworkHandle) (framework.Plugin, error) {
+	args := &Args{}
+	if err := frameworkruntime.DecodeInto(configuration, args); err != nil {
+		return nil, err
+	}
+	klog.V(3).Infof("get plugin config args: %+v", args)
+	return &Greedy{
+		args:   args,
+		handle: f,
+	}, nil
 }
 
 // preFilterState computed at PreFilter and used at Filter.
@@ -79,14 +99,12 @@ func getPrefilterState(cycleState *framework.CycleState) (*preFilterState, error
 		// preFilterState dowsn't exist, likely PreFilter wasn't invoked.
 		return nil, fmt.Errorf("error reading %q from cycleState: %v", preFilterStateKey, err)
 	}
+	s, ok := c.(*preFilterState)
+	if !ok {
+		return nil, fmt.Errorf("%+v convert to NodeResourcesFit.preFilterState error", c)
+	}
+	return s, nil
 }
-
-// Less is used to sort pods in the scheduling queue
-// implement the sorting function in QueueSortPlugin.
-// func (g *Greedy) Less(podInfo1, podInfo2 *framework.QueuedPodInfo) bool {
-// 	// TODO: return sort.Less(podInfo1, podInfo2)
-// 	return true
-// }
 
 // Filter invoked at the filter extension point.
 // Checks if a node has sufficient resources, such as cpu, memory, gpu, opaque int resources etc to run a pod.
@@ -184,7 +202,16 @@ func fitsRequest(podRequest *preFilterState, nodeInfo *framework.NodeInfo) []Ins
 // Score rank nodes that passed the filtering phase
 func (g *Greedy) Score(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (int64, *framework.Status) {
 	// TODO: Score
-	return 0, nil
+	nodeInfo, err := g.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil || nodeInfo.Node() == nil {
+		return 0, framework.NewStatus(framework.Error, fmt.Sprintf("getting node %q from Snapshot: %v, node is nil: %v", nodeName, err, nodeInfo.Node() == nil))
+	}
+
+	// g.score favors nodes with most requested resources.
+	// It calculates the percentage of memory and CPU requested by pods scheduled on the node,
+	// and prioritizes based on the maximum of the average of the fraction of requested to capacity.
+	// Details: (cpu(MaxNodeScore * sum(requested) / capacity) + memory(MaxNodeScore * sum(requested) / capacity)) / weightSum
+	return g.score(pod, nodeInfo)
 }
 
 // ScoreExtensions is defined in interface ScorePlugin and
@@ -198,25 +225,4 @@ func (g *Greedy) ScoreExtensions() framework.ScoreExtensions {
 func (g *Greedy) NormalizeScore(ctx context.Context, state *framework.CycleState, pod *v1.Pod, scores framework.NodeScoreList) *framework.Status {
 	// TODO: NormalizeScore
 	return nil
-}
-
-//
-
-// Name ...
-func (g Greedy) Name() string {
-	return Name
-}
-
-// New initializes a new plugin and return it.
-// And New should implement the function as frameworkruntime.PluginFactory do.
-func New(configuration runtime.Object, f framework.FrameworkHandle) (framework.Plugin, error) {
-	args := &Args{}
-	if err := frameworkruntime.DecodeInto(configuration, args); err != nil {
-		return nil, err
-	}
-	klog.V(3).Infof("get plugin config args: %+v", args)
-	return &Greedy{
-		args:   args,
-		handle: f,
-	}, nil
 }
