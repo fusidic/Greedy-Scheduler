@@ -53,14 +53,26 @@ func (g Greedy) Name() string {
 // And New should implement the function as frameworkruntime.PluginFactory do.
 func New(configuration runtime.Object, f framework.FrameworkHandle) (framework.Plugin, error) {
 	args := &Args{}
+	// I HAVE NO IDEA HOW THESE CODES WORK.
 	if err := frameworkruntime.DecodeInto(configuration, args); err != nil {
 		return nil, err
 	}
+
+	resToWeightMap := make(resourceToWeightMap)
+	resToWeightMap["cpu"] = 1
+	resToWeightMap["memory"] = 1
+
 	klog.V(3).Infof("get plugin config args: %+v", args)
 	return &Greedy{
 		args:   args,
 		handle: f,
+		resourceAllocationScorer: resourceAllocationScorer{
+			Name:                "NodeResourcesMostAllocated",
+			scorer:              greedyResourceScorer(resToWeightMap),
+			resourceToWeightMap: resToWeightMap,
+		},
 	}, nil
+
 }
 
 // preFilterState computed at PreFilter and used at Filter.
@@ -211,7 +223,30 @@ func (g *Greedy) Score(ctx context.Context, state *framework.CycleState, pod *v1
 	// It calculates the percentage of memory and CPU requested by pods scheduled on the node,
 	// and prioritizes based on the maximum of the average of the fraction of requested to capacity.
 	// Details: (cpu(MaxNodeScore * sum(requested) / capacity) + memory(MaxNodeScore * sum(requested) / capacity)) / weightSum
+	// func score is from the delegation of resourceAllocationScorer
 	return g.score(pod, nodeInfo)
+}
+
+func greedyResourceScorer(resToWeightMap resourceToWeightMap) func(requested, allocable resourceToValueMap, includeVolumes bool, requestedVolumes int, allocatableVolumes int) int64 {
+	return func(requested, allocable resourceToValueMap, includeVolumes bool, requestedVolumes int, allocatableVolumes int) int64 {
+		var nodeScore, weightSum int64
+		for resource, weight := range resToWeightMap {
+			resourceScore := greedyScore(requested[resource], allocable[resource])
+			nodeScore += resourceScore * weight
+			weightSum += weight
+		}
+		return (nodeScore / weightSum)
+	}
+}
+
+func greedyScore(requested, capacity int64) int64 {
+	if capacity == 0 {
+		return 0
+	}
+	if requested > capacity {
+		return 0
+	}
+	return (requested * framework.MaxNodeScore) / capacity
 }
 
 // ScoreExtensions is defined in interface ScorePlugin and
