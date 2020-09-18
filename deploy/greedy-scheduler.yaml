@@ -7,11 +7,11 @@ data:
   scheduler-config.yaml: |
     apiVersion: kubescheduler.config.k8s.io/v1beta1
     kind: KubeSchedulerConfiguration
-    schedulerName: greedy-scheduler
     leaderElection:
       leaderElect: false
     profiles:
-    - plugins:
+    - schedulerName: "greedy-scheduler"
+      plugins:
         preFilter:
           enabled:
             - name: "greedy"
