@@ -21,4 +21,4 @@
 
 ### VS Code ###
 /.vscode/
-./greedy-scheduler
+greedy-scheduler
