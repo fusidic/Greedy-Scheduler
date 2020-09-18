@@ -16,8 +16,8 @@ import (
 // implement the interfaces in scheduler framework
 var (
 	// _ framework.QueueSortPlugin = &Greedy{}
-	// _ framework.PreFilterPlugin = &Greedy{}
-	_ framework.FilterPlugin = &Greedy{}
+	_ framework.PreFilterPlugin = &Greedy{}
+	_ framework.FilterPlugin    = &Greedy{}
 	// _ framework.PostFilterPlugin = &Greedy{}
 	_ framework.ScorePlugin     = &Greedy{}
 	_ framework.ScoreExtensions = &Greedy{}
@@ -79,6 +79,11 @@ func New(configuration runtime.Object, f framework.FrameworkHandle) (framework.P
 // preFilterState computed at PreFilter and used at Filter.
 type preFilterState struct {
 	framework.Resource
+}
+
+// PreFilterExtensions returns prefilter extensions, pod add and remove.
+func (g *Greedy) PreFilterExtensions() framework.PreFilterExtensions {
+	return nil
 }
 
 // Clone the prefilter state.
