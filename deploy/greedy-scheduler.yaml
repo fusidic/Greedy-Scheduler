@@ -1,76 +1,73 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: scheduler-config2
+  name: scheduler-config
   namespace: kube-system
 data:
   scheduler-config.yaml: |
     apiVersion: kubescheduler.config.k8s.io/v1alpha1
     kind: KubeSchedulerConfiguration
-    schedulerName: yoda-scheduler2
+    schedulerName: greedy-scheduler
     leaderElection:
       leaderElect: true
-      lockObjectName: yoda-scheduler2
+      lockObjectName: greedy-scheduler
       lockObjectNamespace: kube-system
     plugins:
-      queueSort:
+      preFilter:
         enabled:
-          - name: "yoda"
+          - name: "greedy"
       filter:
         enabled:
-        - name: "yoda"
+        - name: "greedy"
       score:
         enabled:
-        - name: "yoda"
-      postFilter:
-        enabled:
-        - name: "yoda"
+        - name: "greedy"
     pluginConfig:
-    - name: "yoda"
+    - name: "greedy"
       args: {"master": "master", "kubeconfig": "kubeconfig"}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: yoda-scheduler2
+  name: greedy-scheduler
   namespace: kube-system
   labels:
-    component: yoda-scheduler2
+    component: greedy-scheduler
 spec:
   replicas: 1
   selector:
     matchLabels:
-      component: yoda-scheduler2
+      component: greedy-scheduler
   template:
     metadata:
       labels:
-        component: yoda-scheduler2
+        component: greedy-scheduler
     spec:
-      serviceAccount: yoda-sa
+      serviceAccount: greedy-scheduler-sa
       priorityClassName: system-cluster-critical
       volumes:
         - name: scheduler-config
           configMap:
-            name: scheduler-config2
+            name: scheduler-config
       containers:
-        - name: yoda-scheduler
-          image: registry.cn-hangzhou.aliyuncs.com/njupt-isl/yoda-scheduler:2.0
+        - name: greedy-scheduler
+          image: fusidic/greedy-scheduler:0.1
           imagePullPolicy: Always
           args:
-            - yoda-scheduler
-            - --config=/scheduler/scheduler-config.yaml
+            - greedy-scheduler
+            - --config=/etc/kubernetes/scheduler-config.yaml
             - --v=3
           resources:
             requests:
               cpu: "300m"
           volumeMounts:
             - name: scheduler-config
-              mountPath: /scheduler
+              mountPath: /etc/kubernetes
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: yoda-cr
+  name: greedy-scheduler-clusterrole
 rules:
   - apiGroups:
       - ""
@@ -80,17 +77,6 @@ rules:
     verbs:
       - create
       - get
-      - update
-  - apiGroups:
-      - ""
-    resourceNames:
-      - yoda-scheduler
-    resources:
-      - endpoints
-    verbs:
-      - delete
-      - get
-      - patch
       - update
   - apiGroups:
       - ""
@@ -201,35 +187,23 @@ rules:
       - create
       - patch
       - update
-  - apiGroups:
-      - "core.run-linux.com"
-    resources:
-      - scvs
-    verbs:
-      - delete
-      - get
-      - list
-      - watch
-      - update
-      - patch
-      - create
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: yoda-sa
+  name: greedy-scheduler-sa
   namespace: kube-system
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: yoda-crb
+  name: greedy-scheduler-clusterrolebinding
   namespace: kube-system
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: yoda-cr
+  name: greedy-scheduler-clusterrole
 subjects:
   - kind: ServiceAccount
-    name: yoda-sa
+    name: greedy-scheduler-sa
     namespace: kube-system
