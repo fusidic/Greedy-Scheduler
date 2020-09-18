@@ -39,6 +39,7 @@ func (r *resourceAllocationScorer) score(pod *v1.Pod, nodeInfo *framework.NodeIn
 	if r.resourceToWeightMap == nil {
 		return 0, framework.NewStatus(framework.Error, "resources not found")
 	}
+
 	// establish valueMap for each resource
 	requested := make(resourceToValueMap, len(r.resourceToWeightMap))
 	allocatable := make(resourceToValueMap, len(r.resourceToWeightMap))

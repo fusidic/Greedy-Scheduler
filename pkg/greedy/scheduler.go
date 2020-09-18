@@ -16,8 +16,8 @@ import (
 // implement the interfaces in scheduler framework
 var (
 	// _ framework.QueueSortPlugin = &Greedy{}
-	_ framework.FilterPlugin = &Greedy{}
 	// _ framework.PreFilterPlugin = &Greedy{}
+	_ framework.FilterPlugin = &Greedy{}
 	// _ framework.PostFilterPlugin = &Greedy{}
 	_ framework.ScorePlugin     = &Greedy{}
 	_ framework.ScoreExtensions = &Greedy{}
@@ -67,7 +67,8 @@ func New(configuration runtime.Object, f framework.FrameworkHandle) (framework.P
 		args:   args,
 		handle: f,
 		resourceAllocationScorer: resourceAllocationScorer{
-			Name:                "NodeResourcesMostAllocated",
+			Name: "NodeResourcesMostAllocated",
+			// how can the compiler know it need greedyResourceScorer or the function it return with.
 			scorer:              greedyResourceScorer(resToWeightMap),
 			resourceToWeightMap: resToWeightMap,
 		},
@@ -85,7 +86,16 @@ func (s *preFilterState) Clone() framework.StateData {
 	return s
 }
 
-// computePodResourceRequest return a framework.Resource that covers the largest
+// PreFilter invoked at the prefilter extension point.
+func (g *Greedy) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *v1.Pod) *framework.Status {
+	// cycleState provides a mechanism for plugins to store and retrieve arbitrary data, with the form as "key to value"
+	// preFilterStateKey is that Key to our value -- pod requested resources.
+	cycleState.Write(preFilterStateKey, computePodResourceRequest(pod))
+	// nil equals to framework.NewStatus(framework.Success, "")
+	return nil
+}
+
+// computePodResourceRequest return a framework.Resource that covers the LARGEST width in each resource dimension.
 func computePodResourceRequest(pod *v1.Pod) *preFilterState {
 	result := &preFilterState{}
 	for _, container := range pod.Spec.Containers {
@@ -157,6 +167,7 @@ func Fits(pod *v1.Pod, nodeInfo *framework.NodeInfo) []InsufficientResource {
 	return fitsRequest(computePodResourceRequest(pod), nodeInfo)
 }
 
+// fitsRequest returns requested resource's status and reason why node can not fit.
 func fitsRequest(podRequest *preFilterState, nodeInfo *framework.NodeInfo) []InsufficientResource {
 	insufficientResources := make([]InsufficientResource, 0, 4)
 
@@ -211,7 +222,7 @@ func fitsRequest(podRequest *preFilterState, nodeInfo *framework.NodeInfo) []Ins
 	return insufficientResources
 }
 
-// Score rank nodes that passed the filtering phase
+// Score rank nodes that passed the filtering phase, and it is invoked at the Score extension point.
 func (g *Greedy) Score(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (int64, *framework.Status) {
 	// TODO: Score
 	nodeInfo, err := g.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
@@ -227,6 +238,8 @@ func (g *Greedy) Score(ctx context.Context, state *framework.CycleState, pod *v1
 	return g.score(pod, nodeInfo)
 }
 
+// greddyResourceScorer is the custom scorer implement by users.
+// it is defined in resourceAllocationScorer as a function member, and also as a callback in g.score
 func greedyResourceScorer(resToWeightMap resourceToWeightMap) func(requested, allocable resourceToValueMap, includeVolumes bool, requestedVolumes int, allocatableVolumes int) int64 {
 	return func(requested, allocable resourceToValueMap, includeVolumes bool, requestedVolumes int, allocatableVolumes int) int64 {
 		var nodeScore, weightSum int64
