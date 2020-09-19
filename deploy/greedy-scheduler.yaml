@@ -52,7 +52,7 @@ spec:
             name: scheduler-config
       containers:
         - name: greedy-scheduler
-          image: fusidic/greedy-scheduler:0.1
+          image: fusidic/greedy-scheduler:0.2
           imagePullPolicy: IfNotPresent
           args:
             - greedy-scheduler
