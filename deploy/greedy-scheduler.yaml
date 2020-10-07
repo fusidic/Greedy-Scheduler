@@ -12,12 +12,6 @@ data:
     profiles:
     - schedulerName: "greedy-scheduler"
       plugins:
-        preFilter:
-          enabled:
-            - name: "greedy"
-        filter:
-          enabled:
-          - name: "greedy"
         score:
           disabled:
           - name: "*"
@@ -58,7 +52,7 @@ spec:
         effect: NoSchedule
       containers:
         - name: greedy-scheduler
-          image: fusidic/greedy-scheduler:0.2
+          image: fusidic/greedy-scheduler:0.3
           imagePullPolicy: IfNotPresent
           args:
             - greedy-scheduler
