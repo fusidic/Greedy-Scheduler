@@ -50,6 +50,12 @@ spec:
         - name: scheduler-config
           configMap:
             name: scheduler-config
+      nodeSelector:
+        dedicated: master
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
       containers:
         - name: greedy-scheduler
           image: fusidic/greedy-scheduler:0.2
